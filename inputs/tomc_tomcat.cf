@@ -1,0 +1,220 @@
+#!/var/cfengine/bin/cf-agent -KIf
+
+bundle agent tomcat_tomc_user_check_add
+{
+  vars:
+      "userInfo" string => "-d /home/tomc -s /bin/bash -u 756 -m -U tomc";
+
+  classes:
+      "userExists" expression => userexists("tomc");
+  commands:
+    !userExists::
+      "/usr/sbin/useradd $(userInfo)"
+      comment => "!userExists -> Adding";
+}
+
+
+bundle agent tomcat_tar_gz_exists
+{
+  classes:
+      "tomcat_tar_gz_exists" expression => fileexists("/tmp/apache-tomcat-7.0.41.tar.gz");
+
+  reports:
+    tomcat_tar_gz_exists::
+      "tomcat_tar_gz_exists.";
+
+
+  commands:
+    !tomcat_tar_gz_exists::
+      "/usr/bin/wget -q 'http://www.nic.funet.fi/pub/mirrors/apache.org/tomcat/tomcat-7/v7.0.41/bin/apache-tomcat-7.0.41.tar.gz' -O /tmp/apache-tomcat-7.0.41.tar.gz"
+      contain => umask("022"),
+      comment => "Downloading /tmp/apache-tomcat-7.0.41.tar.gz";
+}
+
+bundle agent tomcat_tar_gz_open
+{
+
+  classes:
+      "tomcat_tar_gz_open" expression => fileexists("/home/tomc/apache-tomcat-7.0.41/");
+      
+  reports:
+    tomcat_tar_gz_open::
+      "tomcat_tar_gz_open.";
+
+  commands:
+    !tomcat_tar_gz_open::
+      "/bin/tar -C /home/tomc/ -xzf /tmp/apache-tomcat-7.0.41.tar.gz --no-same-owner"
+      contain => run_u_as("022","tomc","tomc"),
+      comment => "Extracting to /home/tomc/apache-tomcat-7.0.41/";
+}
+
+bundle agent tomcat_conf 
+{
+  files:
+      "/home/tomc/tomcat/."
+      perms => mog("750","tomc","tomc"),
+      create => "true";
+
+      "/home/tomc/tomcat/bin/."
+      perms => mog("750","tomc","tomc"),
+      create => "true";
+
+      "/home/tomc/tomcat/conf/."
+      perms => mog("750","tomc","tomc"),
+      create => "true";
+
+      "/home/tomc/tomcat/logs/."
+      perms => mog("750","tomc","tomc"),
+      create => "true";
+
+      "/home/tomc/tomcat/temp/."
+      perms => mog("750","tomc","tomc"),
+      create => "true";
+
+      "/home/tomc/tomcat/webapps/."
+      perms => mog("750","tomc","tomc"),
+      create => "true";
+
+      "/home/tomc/tomcat/work/."
+      perms => mog("750","tomc","tomc"),
+      create => "true";
+       
+      "/home/tomc/tomcat/conf/server.xml"
+      perms => mog("750","tomc","tomc"),
+      copy_from => local_cp("/home/tomc/apache-tomcat-7.0.41/conf/server.xml");
+
+      "/home/tomc/tomcat/conf/web.xml"
+      perms => mog("750","tomc","tomc"),
+      copy_from => local_cp("/home/tomc/apache-tomcat-7.0.41/conf/web.xml");
+}
+
+bundle agent tomcat_launcher
+{
+vars:
+      "content" string => 
+      "#!/bin/sh
+
+export CATALINA_HOME=/home/tomc/apache-tomcat-7.0.41
+export CATALINA_BASE=/home/tomc/tomcat
+export JAVA_HOME=/opt/jdk1.7.0_25
+export JAVA_OPTS=\"${JAVA_OPTS} -d64 -Xmx6G -XX:+AggressiveHeap -Xss1024k -XX:AllocatePrefetchStyle=2 -XX:AllocatePrefetchLines=3 -XX:+UseTLAB -XX:+ResizeTLAB -XX:+UseParallelGC -XX:+UseParallelOldGC -XX:+ScavengeBeforeFullGC -XX:ParallelGCThreads=3\"
+exec ${CATALINA_HOME}/bin/catalina.sh start
+";
+      
+  files:
+      
+      "/home/tomc/launcher.tomcat.sh"
+      create => "true",
+      perms => mog("750","tomc","tomc"),
+      edit_line => append_if_no_line("$(content)"),
+      edit_defaults => empty;
+}
+
+bundle agent tomcat_slf4j_tar_gz_exists
+{
+  classes:
+      "tomcat_slf4j_tar_gz_exists" expression => fileexists("/tmp/slf4j-1.7.5.tar.gz");
+
+  reports:
+    tomcat_slf4j_tar_gz_exists::
+      "tomcat_slf4j_tar_gz_exists.";
+
+
+  commands:
+    !tomcat_slf4j_tar_gz_exists::
+      "/usr/bin/wget -q 'http://www.slf4j.org/dist/slf4j-1.7.5.tar.gz' -O /tmp/slf4j-1.7.5.tar.gz"
+      comment => "Downloading /tmp/slf4j-1.7.5.tar.gz";
+}
+
+bundle agent tomcat_slf4j_tar_gz_open
+{
+
+  classes:
+      "tomcat_slf4j_tar_gz_open" expression => fileexists("/home/tomc/slf4j-1.7.5/integration/lib/");
+      
+  reports:
+    tomcat_slf4j_tar_gz_open::
+      "tomcat_tar_gz_open.";
+
+  commands:
+    !tomcat_slf4j_tar_gz_open::
+      "/bin/tar -C /home/tomc/ -xzf /tmp/slf4j-1.7.5.tar.gz --no-same-owner slf4j-1.7.5/integration/lib/"
+      contain => umask("022"),
+      comment => "Extracting to /home/tomc/slf4j-1.7.5/integration/lib/";
+}
+
+bundle agent tomcat_slf4j_lib
+{
+  files:
+
+      "/home/tomc/tomcat/lib/slf4j-simple-1.5.11.jar"
+      perms => mog("750","tomc","tomc"),
+      copy_from => u_cp("/home/tomc/slf4j-1.7.5/integration/lib/slf4j-simple-1.5.11.jar");
+
+      "/home/tomc/tomcat/lib/slf4j-api-1.5.11.jar"
+      perms => mog("750","tomc","tomc"),
+      copy_from => u_cp("/home/tomc/slf4j-1.7.5/integration/lib/slf4j-api-1.5.11.jar");
+
+      "/home/tomc/tomcat/lib/junit-3.8.1.jar"
+      perms => mog("750","tomc","tomc"),
+      copy_from => u_cp("/home/tomc/slf4j-1.7.5/integration/lib/junit-3.8.1.jar");
+      
+}
+
+bundle agent tomcat_commons_logging_tar_gz_exists
+{
+  classes:
+      "tomcat_commons_logging_tar_gz_exists" expression => fileexists("/tmp/commons-logging-1.1.3-bin.tar.gz");
+
+  reports:
+    tomcat_commons_logging_tar_gz_exists::
+      "tomcat_commons_logging_tar_gz_exists.";
+
+
+  commands:
+    !tomcat_commons_logging_tar_gz_exists::
+      "/usr/bin/wget -q 'http://www.nic.funet.fi/pub/mirrors/apache.org//commons/logging/binaries/commons-logging-1.1.3-bin.tar.gz' -O /tmp/commons-logging-1.1.3-bin.tar.gz"
+      comment => "Downloading /tmp/commons-logging-1.1.3-bin.tar.gz";
+}
+
+
+bundle agent tomcat_commons_logging_tar_gz_open
+{
+
+  classes:
+      "tomcat_commons_logging_tar_gz_open" expression => fileexists("/home/tomc/commons-logging-1.1.3/");
+      
+  reports:
+    tomcat_commons_logging_tar_gz_open::
+      "tomcat_tar_gz_open.";
+
+  commands:
+    !tomcat_commons_logging_tar_gz_open::
+      "/bin/tar -C /home/tomc/ -xzf /tmp/commons-logging-1.1.3-bin.tar.gz --no-same-owner --wildcards commons-logging-1.1.3/*.jar"
+      contain => umask("022"),
+      comment => "Extracting to /home/tomc/commons-logging-1.1.3/";
+}
+
+bundle agent tomcat_commons_logging_lib
+{
+  files:
+      "/home/tomc/tomcat/lib/"
+      perms => mog("750","tomc","tomc"),
+      copy_from => u_cp("/home/tomc/commons-logging-1.1.3/"),
+      depth_search => u_recurse("inf");
+      
+}
+
+bundle agent tomc_process_restart
+{
+processes:
+
+  "org.apache.catalina.startup.Bootstrap" 
+        restart_class => "launch";
+
+commands:
+
+  launch::
+   "/home/tomc/launcher.tomcat.sh"
+    contain => run_as_ogt("tomc","tomc","60");
+}

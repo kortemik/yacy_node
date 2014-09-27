@@ -1,0 +1,6 @@
+body contain run_u_as(mask,user,group)
+{
+      umask => "$(mask)";
+      exec_owner => "$(user)";
+      exec_group => "$(group)";
+}

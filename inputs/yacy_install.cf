@@ -1,0 +1,158 @@
+
+bundle agent yacy_user_check_add 
+{
+  vars:
+      "userInfo" string => "-d /home/yacy -s /bin/bash -u 757 -m -U yacy";
+
+  classes:
+      "userExists" expression => userexists("yacy");
+  commands:
+    !userExists::
+      "/usr/sbin/useradd $(userInfo)"
+      comment => "!userExists -> Adding";
+}
+
+bundle agent yacy_tar_gz_exists
+{
+  classes:
+      "yacy_tar_gz_exists" expression => fileexists("/tmp/yacy_v1.5_20130613_9000.tar.gz");
+
+  reports:
+    yacy_tar_gz_exists::
+      "yacy_tar_gz_exists.";
+
+
+  commands:
+    !yacy_tar_gz_exists::
+      "/usr/bin/wget -q 'http://yacy.net/release/yacy_v1.5_20130613_9000.tar.gz' -O /tmp/yacy_v1.5_20130613_9000.tar.gz"
+      contain => umask("022"),
+      comment => "Downloading /tmp/yacy_v1.5_20130613_9000.tar.gz";
+}
+
+bundle agent yacy_tar_gz_open
+{
+
+  classes:
+      "yacy_tar_gz_open" expression => fileexists("/home/yacy/yacy/");
+      
+  reports:
+    yacy_tar_gz_open::
+      "yacy_tar_gz_open.";
+
+  commands:
+    !yacy_tar_gz_open::
+      "/bin/tar -C /home/yacy/ -xzf /tmp/yacy_v1.5_20130613_9000.tar.gz --no-same-owner"
+      contain => run_u_as("022","yacy","yacy"),
+      comment => "Extracting to /home/yacy/yacy/";
+}
+
+bundle agent yacy_conf
+{
+     
+  files:
+      "/home/yacy/yacy/DATA/."
+      perms => mog("750","yacy","yacy"),
+      create => "true";
+
+      "/home/yacy/yacy/DATA/LISTS/."
+      perms => mog("750","yacy","yacy"),
+      create => "true";
+
+      "/home/yacy/yacy/DATA/LOG/."
+      perms => mog("750","yacy","yacy"),
+      create => "true";
+
+      "/home/yacy/yacy/DATA/SETTINGS/."
+      perms => mog("750","yacy","yacy"),
+      create => "true";
+
+      "/tmp/yacy_conf.template"
+      perms => mog("640", "root", "root"),
+      copy_from => secure_cp("/var/cfengine/templates/yacy_conf.template","localhost");
+      
+      "/home/yacy/yacy/DATA/SETTINGS/yacy.conf"
+      create => "true",
+      perms => mog("640", "yacy", "yacy"),
+      edit_defaults => empty,
+      edit_line => expand_template("/tmp/yacy_conf.template"); 
+
+      "/tmp/yacy_dht.template"
+      perms => mog("640", "root", "root"),
+      copy_from => secure_cp("/var/cfengine/templates/yacy_dht.template","localhost");
+      
+      "/home/yacy/yacy/DATA/SETTINGS/dht.net"
+      create => "true",
+      perms => mog("640", "yacy", "yacy"),
+      edit_defaults => empty,
+      edit_line => expand_template("/tmp/yacy_dht.template"); 
+}
+
+bundle agent yacy_logging 
+{
+  files:
+      "/tmp/yacy_logging.template"
+      perms => mog("640", "root", "root"),
+      copy_from => secure_cp("/var/cfengine/templates/yacy_logging.template","localhost");
+      
+      "/home/yacy/yacy/DATA/LOG/yacy.logging"
+      create => "true",
+      perms => mog("640", "yacy", "yacy"),
+      edit_defaults => empty,
+      edit_line => expand_template("/tmp/yacy_logging.template"); 
+}
+
+bundle agent yacy_blacklist 
+{
+  
+  files:
+      "/tmp/yacy_blacklist.template"
+      perms => mog("640", "root", "root"),
+      copy_from => secure_cp("/var/cfengine/templates/yacy_blacklist.template","localhost");
+      
+      "/home/yacy/yacy/DATA/LISTS/ahmia.blacklist.black"
+      create => "true",
+      perms => mog("640", "yacy", "yacy"),
+      edit_defaults => empty,
+      edit_line => expand_template("/tmp/yacy_blacklist.template"); 
+}
+
+bundle agent yacy_launcher
+{
+vars:
+      "content" string => 
+      "#!/bin/bash
+
+JAVA_HOME=/opt/jdk1.7.0_25/
+pushd .
+cd yacy
+CLASSPATH=\"\"
+for N in lib/*.jar; do CLASSPATH=\"$CLASSPATH$N:\"; done
+CLASSPATH=\".:htroot:$CLASSPATH\"
+JAVA_ARGS=\"-server -d64 -XX:MaxPermSize=256m -XX:ReservedCodeCacheSize=1024m -XX:-UseGCOverheadLimit -XX:+UseAdaptiveSizePolicy -Djava.net.preferIPv4Stack=true -Djava.awt.headless=true -Dfile.encoding=UTF-8 -Xss1024k -XX:AllocatePrefetchStyle=2 -XX:AllocatePrefetchLines=3 -XX:+UseTLAB -XX:+ResizeTLAB -XX:+UseParallelGC -XX:+UseParallelOldGC -XX:+ScavengeBeforeFullGC -XX:ParallelGCThreads=3\";
+cmdline=\"$JAVA_HOME/bin/java $JAVA_ARGS -classpath $CLASSPATH net.yacy.yacy\";
+exec $cmdline&
+popd .
+";
+      
+  files:
+      
+      "/home/yacy/launcher.yacy.sh"
+      create => "true",
+      perms => mog("750","yacy","yacy"),
+      edit_line => append_if_no_line("$(content)"),
+      edit_defaults => empty;
+}
+
+bundle agent yacy_process_restart
+{
+processes:
+
+  "net.yacy.yacy" 
+        restart_class => "launch";
+
+commands:
+
+  launch::
+   "/home/yacy/launcher.yacy.sh"
+    contain => run_as_ogt("yacy","yacy","60");
+}

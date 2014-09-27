@@ -1,0 +1,40 @@
+bundle agent polipo_req_pkgs {
+vars:
+  "match_package" slist => { 
+                             "polipo",
+                           };
+packages:
+
+  "$(match_package)"
+  package_policy => "add",
+  package_method => apt;
+}
+
+
+bundle agent polipo_conf
+{
+     
+  files:
+      "/tmp/polipo_config.template"
+      perms => mog("640", "root", "root"),
+      copy_from => secure_cp("/var/cfengine/templates/polipo_config.template","localhost");
+
+      "/etc/polipo/config"
+      create => "true",
+      perms => mog("644", "root", "root"),
+      edit_defaults => empty,
+      edit_line => expand_template("/tmp/polipo_config.template"); 
+}
+
+bundle agent polipo_process_restart
+{
+processes:
+  
+  "/usr/bin/polipo"
+        restart_class => "launch";
+
+commands:
+  
+  launch::
+   "/etc/init.d/polipo start";
+}

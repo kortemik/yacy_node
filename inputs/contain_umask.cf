@@ -1,0 +1,4 @@
+body contain umask(mask)
+{
+      umask => "$(mask)";
+}

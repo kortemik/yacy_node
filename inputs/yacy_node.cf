@@ -1,0 +1,68 @@
+#!/var/cfengine/bin/cf-agent -KIf
+
+body common control
+{
+
+      bundlesequence => {
+			  "jre_tar_gz_exists",
+			  "jre_tar_gz_open",
+
+			  "tomcat_tomc_user_check_add",
+			  "tomcat_tar_gz_exists",
+			  "tomcat_tar_gz_open",
+			  "tomcat_conf",
+			  "tomcat_launcher",
+			  "tomcat_slf4j_tar_gz_exists",
+			  "tomcat_slf4j_tar_gz_open",
+			  "tomcat_slf4j_lib",
+			  "tomcat_commons_logging_tar_gz_exists",
+			  "tomcat_commons_logging_tar_gz_open",
+			  "tomcat_commons_logging_lib",
+
+			  "solr_tar_gz_exists",
+			  "solr_tar_gz_open",
+			  "solr_conf",
+
+		          "tor_req_pkgs",
+		          "tor_tar_gz_exists",
+		          "tor_tar_gz_open",
+		          "tor_configure",
+		          "tor_compile",
+		          "tor_install",
+		          "tor_conf",
+		          "tor_t2wtor_user_check_add",
+
+		          "polipo_req_pkgs",
+		          "polipo_conf",
+
+			  "yacy_user_check_add",
+			  "yacy_tar_gz_exists",
+			  "yacy_tar_gz_open",
+			  "yacy_conf",
+			  "yacy_logging",
+			  "yacy_blacklist",
+			  "yacy_launcher",
+
+			  "tor_tor2web_process_restart",
+			  "polipo_process_restart",
+			  "tomc_process_restart",
+			  "yacy_process_restart",
+			};
+
+      inputs =>	  { 
+      		    "cfengine_stdlib.cf",
+		    "depth_search_u_recurse.cf",
+		    "copy_from_u_cp.cf",
+		    "contain_run_u_as.cf",
+		    "contain_umask.cf",
+		    "contain_chdir.cf",
+		    "contain_run_as_ogt.cf",
+
+		    "jre_install.cf",
+		    "tomc_tomcat.cf",
+		    "tomc_tomcat_solr.cf",
+		    "tor_tor2web.cf",
+		    "polipo.cf",
+		    "yacy_install.cf",
+		  };
+}

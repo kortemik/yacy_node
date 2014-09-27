@@ -1,0 +1,6 @@
+body contain run_as_ogt(user,group,timeout)
+{
+  exec_owner => "$(user)";
+  exec_group => "$(group)";
+  exec_timeout => "$(timeout)";           
+}

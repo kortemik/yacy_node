@@ -1,0 +1,139 @@
+body common control
+{
+
+      bundlesequence => {
+			  "tinc_req_pkgs",
+			  "tinc_tar_gz_exists",
+			  "tinc_tar_gz_open",
+			  "tinc_compile",
+			  "tinc_install",
+			  "tinc_conf",
+			  "tinc_process_restart",
+			};
+
+      inputs =>	  { 
+      		    "cfengine_stdlib.cf",
+		    "contain_umask.cf",
+		    "contain_chdir.cf",
+};
+}
+bundle agent tinc_req_pkgs {
+vars:
+  "match_package" slist => { 
+                             "gcc",
+			     "libevent-dev",
+			     "libssl-dev",
+			     "zlib1g-dev",
+			     "make",
+                           };
+packages:
+
+  "$(match_package)"
+  package_policy => "add",
+  package_method => apt;
+}
+
+
+  bundle agent tinc_tar_gz_exists
+  {
+classes:
+  "tinc_tar_gz_exists" expression => fileexists("/tmp/peervpn-0-036.tar.gz");
+
+reports:
+  tinc_tar_gz_exists::
+    "tinc_tar_gz_exists.";
+
+
+commands:
+  !tinc_tar_gz_exists::
+    "/usr/bin/wget -q 'http://www.peervpn.net/files/peervpn-0-036.tar.gz' -O /tmp/peervpn-0-036.tar.gz"
+    comment => "Downloading /tmp/peervpn-0-036.tar.gz";
+}
+
+    bundle agent tinc_tar_gz_open
+    {
+
+classes:
+  "tinc_tar_gz_open" expression => fileexists("/tmp/peervpn-0-036/");
+  
+reports:
+  tinc_tar_gz_open::
+    "tinc_tar_gz_open.";
+
+commands:
+  !tinc_tar_gz_open::
+    "/bin/tar -C /tmp/ -xzf /tmp/peervpn-0-036.tar.gz --no-same-owner"
+    contain => umask("022"),
+    comment => "Extracting to /tmp/peervpn-0-036/";
+}
+
+    bundle agent tinc_configure {
+classes:
+  "tinc_configured" expression => fileexists("/tmp/peervpn-0-036/config.log");
+reports:
+  tinc_configured::
+    "tinc_configured.";
+
+    # FIXME should be run as other user than root!
+commands:
+  !tinc_configured::
+  "./configure --prefix=/opt/peervpn-0-036"
+  contain => chdir("/tmp/peervpn-0-036/"),
+  comment => "configuring tinc in /tmp/peervpn-0-036/";
+}
+
+    bundle agent tinc_compile {
+classes:
+  "tinc_compiled" expression => fileexists("/tmp/peervpn-0-036/peervpn");
+reports:
+  tinc_compiled::
+    "tinc_compiled.";
+
+    # FIXME should be run as other user than root!
+commands:
+  !tinc_compiled::
+  "make"
+  contain => chdir("/tmp/peervpn-0-036/"),
+  comment => "compiling tinc to /tmp/peervpn-0-036/peervpn";
+}
+
+    bundle agent tinc_install {
+
+  files:
+      "/opt/peervpn-0-036/bin/."
+      perms => mog("750", "root", "root");
+
+      "/opt/peervpn-0-036/bin/peervpn"
+      perms => mog("750", "root", "root"),
+      copy_from => secure_cp("/tmp/peervpn-0-036/peervpn","localhost");
+}
+
+bundle agent tinc_conf
+{
+     
+  files:
+      "/tmp/tinc_conf.template"
+      perms => mog("640", "root", "root"),
+      copy_from => secure_cp("/var/cfengine/templates/tinc_conf.template","localhost");
+
+      "/opt/peervpn-0-036/etc/."
+      perms => mog("750", "root", "root");
+
+      "/opt/peervpn-0-036/etc/peervpn.conf"
+      create => "true",
+      perms => mog("600", "root", "root"),
+      edit_defaults => empty,
+      edit_line => expand_template("/tmp/tinc_conf.template"); 
+}
+bundle agent tinc_process_restart
+{
+processes:
+
+  "/opt/peervpn-0-036/bin/peervpn /opt/peervpn-0-036/etc/peervpn.conf" 
+        restart_class => "launch";
+
+commands:
+
+  launch::
+   "/bin/sh -c '/opt/peervpn-0-036/bin/peervpn /opt/peervpn-0-036/etc/peervpn.conf > /dev/null 2>&1 &'";
+}

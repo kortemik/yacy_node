@@ -1,0 +1,117 @@
+bundle agent solr_tar_gz_exists
+{
+  classes:
+      "solr_tar_gz_exists" expression => fileexists("/tmp/solr-4.3.1.tgz");
+
+  reports:
+    solr_tar_gz_exists::
+      "solr_tar_gz_exists.";
+
+
+  commands:
+    !solr_tar_gz_exists::
+      "/usr/bin/wget -q 'http://www.nic.funet.fi/pub/mirrors/apache.org/lucene/solr/4.3.1/solr-4.3.1.tgz' -O /tmp/solr-4.3.1.tgz"
+      contain => umask("022"),
+      comment => "Downloading /tmp/solr-4.3.1.tgz";
+}
+
+
+bundle agent solr_tar_gz_open
+{
+
+  classes:
+      "solr_tar_gz_open" expression => fileexists("/home/tomc/solr-4.3.1/");
+      
+  reports:
+    solr_tar_gz_open::
+      "solr_tar_gz_open.";
+
+  commands:
+    !solr_tar_gz_open::
+      "/bin/tar -C /home/tomc/ -xzf /tmp/solr-4.3.1.tgz --no-same-owner"
+      contain => run_u_as("022","tomc","tomc"),
+      comment => "Extracting to /home/tomc/solr-4.3.1/";
+}
+
+
+bundle agent solr_conf 
+{
+
+  vars:
+
+      "tomcat_solr_xml" string => 
+      "<?xml version=\"1.0\" encoding=\"utf-8\"?>
+<Context docBase=\"/home/tomc/solr/solr.war\" debug=\"0\" crossContext=\"true\">
+  <Environment name=\"solr/home\" type=\"java.lang.String\" value=\"/home/tomc/solr\" override=\"true\"/>
+</Context>
+";
+
+      "solr_xml" string => 
+      "<?xml version=\"1.0\" encoding=\"UTF-8\" ?>
+<solr persistent=\"true\">
+  <cores adminPath=\"/admin/cores\" defaultCoreName=\"collection1\">
+    <core name=\"collection1\" instanceDir=\"collection1\" />
+    <core name=\"webgraph\" instanceDir=\"webgraph\" />
+  </cores>
+</solr>
+";
+
+  files:
+
+      "/home/tomc/solr/conf/Catalina/."
+      perms => mog("750","tomc","tomc"),
+      create => "true";
+
+      "/home/tomc/solr/conf/Catalina/localhost/."
+      perms => mog("750","tomc","tomc"),
+      create => "true";
+      
+      "/home/tomc/tomcat/conf/Catalina/localhost/solr.xml"
+      create => "true",
+      perms => mog("640","tomc","tomc"),
+      edit_line => append_if_no_line("$(tomcat_solr_xml)"),
+      edit_defaults => empty;
+
+      "/home/tomc/solr/"
+      perms => mog("750","tomc","tomc"),
+      copy_from => u_cp("/home/tomc/solr-4.3.1/example/solr"),
+      depth_search => u_recurse("inf");
+
+      "/home/tomc/solr/solr.war"
+      perms => mog("760","tomc","tomc"),
+      copy_from => u_cp("/home/tomc/solr-4.3.1/dist/solr-4.3.1.war");
+
+      "/home/tomc/solr/webgraph"
+      perms => m("640"),
+      copy_from => u_cp("/home/tomc/solr/collection1"),
+      depth_search => u_recurse("inf");
+
+      "/home/tomc/solr/solr.xml"
+      create => "true",
+      perms => mog("640","tomc","tomc"),
+      edit_line => append_if_no_line("$(solr_xml)"),
+      edit_defaults => empty;
+
+      "/tmp/solr_webgraph.template"
+      perms => mog("640", "root", "root"),
+      copy_from => secure_cp("/var/cfengine/templates/solr_webgraph.template","localhost");
+            
+      "/home/tomc/solr/webgraph/conf/schema.xml"
+      create => "true",
+      perms => mog("640", "tomc", "tomc"),
+      edit_defaults => empty,
+      edit_line => expand_template("/tmp/solr_webgraph.template"); 
+
+      "/tmp/solr_collection1.template"
+      perms => mog("640", "root", "root"),
+      copy_from => secure_cp("/var/cfengine/templates/solr_collection1.template","localhost");
+      
+      "/home/tomc/solr/collection1/conf/schema.xml"
+      create => "true",
+      perms => mog("640", "tomc", "tomc"),
+      edit_defaults => empty,
+      edit_line => expand_template("/tmp/solr_collection1.template"); 
+
+}
+
+

@@ -1,0 +1,9 @@
+SocksPort 9050 # Default: Bind to localhost:9050 for local connections.
+Log notice file /home/t2wtor/notices.log
+Log debug file /home/t2wtor/debug.log
+RunAsDaemon 1
+DataDirectory /home/t2wtor/
+Tor2webMode 1
+User t2wtor
+LearnCircuitBuildTimeout 0
+CircuitBuildTimeout 5

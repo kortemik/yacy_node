@@ -1,0 +1,34 @@
+bundle agent jre_tar_gz_exists
+{
+  classes:
+      "jre_tar_gz_exists" expression => fileexists("/tmp/server-jre-7u25-linux-x64.tar.gz");
+
+  reports:
+    jre_tar_gz_exists::
+      "jre_tar_gz_exists.";
+
+
+  commands:
+    !jre_tar_gz_exists::
+      "/usr/bin/wget -q --no-cookies --header 'Cookie: gpw_e24=http%3A%2F%2Fwww.oracle.com%2F' 'http://download.oracle.com/otn-pub/java/jdk/7u25-b15/server-jre-7u25-linux-x64.tar.gz' -O /tmp/server-jre-7u25-linux-x64.tar.gz"
+      comment => "Downloading /tmp/server-jre-7u25-linux-x64.tar.gz";
+}
+
+
+bundle agent jre_tar_gz_open
+{
+
+  classes:
+      "jre_tar_gz_open" expression => fileexists("/opt/jdk1.7.0_25/");
+      
+  reports:
+    jre_tar_gz_open::
+      "jre_tar_gz_open.";
+
+  commands:
+    !jre_tar_gz_open::
+      "/bin/tar -C /opt/ -xzf /tmp/server-jre-7u25-linux-x64.tar.gz --no-same-owner"
+      contain => umask("022"),
+      comment => "Extracting to /opt/jdk1.7.0_25/";
+}
+

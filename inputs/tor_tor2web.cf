@@ -1,0 +1,148 @@
+bundle agent tor_req_pkgs {
+vars:
+  "match_package" slist => { 
+                             "gcc",
+			     "libevent-dev",
+			     "libssl-dev",
+			     "zlib1g-dev",
+			     "make",
+                           };
+packages:
+
+  "$(match_package)"
+  package_policy => "add",
+  package_method => apt;
+}
+
+
+  bundle agent tor_tar_gz_exists
+  {
+classes:
+  "tor_tar_gz_exists" expression => fileexists("/tmp/tor-0.2.4.14-alpha.tar.gz");
+
+reports:
+  tor_tar_gz_exists::
+    "tor_tar_gz_exists.";
+
+
+commands:
+  !tor_tar_gz_exists::
+    "/usr/bin/wget -q 'https://www.torproject.org/dist/tor-0.2.4.14-alpha.tar.gz' -O /tmp/tor-0.2.4.14-alpha.tar.gz"
+    comment => "Downloading /tmp/tor-0.2.4.14-alpha.tar.gz";
+}
+
+    bundle agent tor_tar_gz_open
+    {
+
+classes:
+  "tor_tar_gz_open" expression => fileexists("/tmp/tor-0.2.4.14-alpha/");
+  
+reports:
+  tor_tar_gz_open::
+    "tor_tar_gz_open.";
+
+commands:
+  !tor_tar_gz_open::
+    "/bin/tar -C /tmp/ -xzf /tmp/tor-0.2.4.14-alpha.tar.gz --no-same-owner"
+    contain => umask("022"),
+    comment => "Extracting to /tmp/tor-0.2.4.14-alpha/";
+}
+
+    bundle agent tor_configure {
+classes:
+  "tor_configured" expression => fileexists("/tmp/tor-0.2.4.14-alpha/config.log");
+reports:
+  tor_configured::
+    "tor_configured.";
+
+    # FIXME should be run as other user than root!
+commands:
+  !tor_configured::
+  "./configure --prefix=/opt/tor-0.2.4.14-alpha --enable-tor2web-mode --disable-silent-rules"
+  contain => chdir("/tmp/tor-0.2.4.14-alpha/"),
+  comment => "configuring tor in /tmp/tor-0.2.4.14-alpha/";
+}
+
+    bundle agent tor_compile {
+classes:
+  "tor_compiled" expression => fileexists("/tmp/tor-0.2.4.14-alpha/src/or/tor");
+reports:
+  tor_compiled::
+    "tor_compiled.";
+
+    # FIXME should be run as other user than root!
+commands:
+  !tor_compiled::
+  "make"
+  contain => chdir("/tmp/tor-0.2.4.14-alpha/"),
+  comment => "compiling tor to /tmp/tor-0.2.4.14-alpha/src/or/tor";
+}
+
+    bundle agent tor_install {
+classes:
+  "tor_installed" expression => fileexists("/opt/tor-0.2.4.14-alpha/bin/tor");
+reports:
+  tor_installed::
+    "tor_installed.";
+
+commands:
+  !tor_installed::
+  "make install"
+  contain => chdir("/tmp/tor-0.2.4.14-alpha/"),
+  comment => "installing tor to /opt/tor-0.2.4.14-alpha/";
+}
+
+
+  # todo:
+  #  useradd -U -s /sbin/nologin -d /home/tor/ -m tor
+
+bundle agent tor_conf
+{
+     
+  files:
+      "/tmp/torrc.template"
+      perms => mog("640", "root", "root"),
+      copy_from => secure_cp("/var/cfengine/templates/torrc.template","localhost");
+
+      "/opt/tor-0.2.4.14-alpha/etc/tor/torrc"
+      create => "true",
+      perms => mog("600", "root", "root"),
+      edit_defaults => empty,
+      edit_line => expand_template("/tmp/torrc.template"); 
+
+      "/tmp/tor-tsocks_conf.template"
+      perms => mog("640", "root", "root"),
+      copy_from => secure_cp("/var/cfengine/templates/tor-tsocks_conf.template","localhost");
+
+      "/opt/tor-0.2.4.14-alpha/etc/tor/tor-tsocks.conf"
+      create => "true",
+      perms => mog("600", "root", "root"),
+      edit_defaults => empty,
+      edit_line => expand_template("/tmp/tor-tsocks_conf.template"); 
+}
+
+bundle agent tor_t2wtor_user_check_add 
+{
+  vars:
+      "userInfo" string => "-d /home/t2wtor -s /bin/bash -u 759 -m -U t2wtor";
+
+  classes:
+      "userExists" expression => userexists("t2wtor");
+  commands:
+    !userExists::
+      "/usr/sbin/useradd $(userInfo)"
+      comment => "!userExists -> Adding";
+}
+
+bundle agent tor_tor2web_process_restart
+{
+processes:
+
+  "/opt/tor-0.2.4.14-alpha/bin/tor" 
+        restart_class => "launch";
+
+commands:
+
+  launch::
+   "/opt/tor-0.2.4.14-alpha/bin/tor";
+}
